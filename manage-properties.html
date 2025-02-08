@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.8.1/dist/web3.min.js"></script>
+  <title>Manage Properties</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="assets/css/main.css" rel="stylesheet">
+</head>
+
+<body>
+  <header id="header" class="header d-flex align-items-center fixed-top">
+    <div class="container-fluid container-xl d-flex align-items-center justify-content-between">
+      <a href="index.html" class="logo d-flex align-items-center">
+        <h1 class="sitename">Estate<span>Agency</span></h1>
+      </a>
+
+      <nav id="navmenu" class="navmenu">
+        <ul>
+          <li><a href="index.html" class="active">Home</a></li>
+          <li><a href="properties.html">Properties</a></li>
+          <li class="dropdown">
+            <a href="#" id="mode-dropdown">
+              <span>Mode</span> <i class="bi bi-chevron-down toggle-dropdown"></i>
+            </a>
+            <ul id="mode-options">
+              <li><a href="#" id="buyer-mode" class="mode-option">Buyer</a></li>
+              <li><a href="#" id="seller-mode" class="mode-option">Seller</a></li>
+            </ul>
+          </li>
+
+          <!-- MetaMask Connect Button -->
+          <li>
+            <button id="metamask-login" class="btn btn-primary">Connect MetaMask</button>
+            <span id="wallet-address" class="ms-2 text-success"></span>
+          </li>
+        </ul>
+        <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container mt-5">
+    <!-- Add New Property Section -->
+    <section>
+      <h2 class="mb-3">Add a New Property</h2>
+      <form id="add-property-form" onsubmit="event.preventDefault(); addPropertyToBlockchain();" class="border p-4 rounded shadow">
+        <div class="mb-3">
+          <label for="property-title" class="form-label">Property Title</label>
+          <input type="text" class="form-control" id="property-title" placeholder="Enter property title" required>
+        </div>
+        <div class="mb-3">
+          <label for="property-price" class="form-label">Price (in ETH)</label>
+          <input type="number" class="form-control" id="property-price" placeholder="Enter property price" required>
+        </div>
+        <div class="mb-3">
+          <label for="property-description" class="form-label">Description</label>
+          <textarea class="form-control" id="property-description" rows="3" placeholder="Enter property description" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-success">Add Property</button>
+      </form>
+    </section>
+
+    <hr class="my-5">
+
+    <!-- Existing Properties Section -->
+    <section>
+      <h2 class="mb-3">Your Properties</h2>
+      <div id="properties-list" class="row g-4">
+        <!-- Dynamic property cards will be rendered here -->
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-dark text-white text-center py-3 mt-5">
+    <div class="container">
+      <p>&copy; 2025 EstateAgency. All Rights Reserved.</p>
+    </div>
+  </footer>
+
+  <!-- Bootstrap JS -->
+  <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // Smart Contract ABI and Address
+    const contractABI = [ /* Your contract ABI here */ ];
+    const contractAddress = "0xYourContractAddress"; // Replace with your deployed contract address
+
+    let web3;
+    let contract;
+
+    // Initialize Web3 and Contract
+    async function initializeWeb3() {
+      if (typeof window.ethereum !== "undefined") {
+        web3 = new Web3(window.ethereum);
+        contract = new web3.eth.Contract(contractABI, contractAddress);
+        console.log("Web3 initialized and contract loaded:", contract);
+      } else {
+        alert("MetaMask is required to interact with the application.");
+      }
+    }
+
+    // Connect to MetaMask
+    async function connectToMetaMask() {
+      if (typeof window.ethereum !== "undefined") {
+        try {
+          const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+          const account = accounts[0];
+          document.getElementById("wallet-address").textContent = `${account.slice(0, 6)}...${account.slice(-4)}`;
+          console.log("Connected account:", account);
+        } catch (error) {
+          console.error("MetaMask connection error:", error);
+        }
+      } else {
+        alert("MetaMask is not installed. Please install it to use this feature.");
+      }
+    }
+
+    // Add Property to Blockchain
+    async function addPropertyToBlockchain() {
+      const title = document.getElementById("property-title").value;
+      const price = document.getElementById("property-price").value; // Price in ETH
+
+      if (typeof window.ethereum !== "undefined") {
+        try {
+          const accounts = await web3.eth.getAccounts();
+          const owner = accounts[0];
+
+          await contract.methods.addProperty(title, web3.utils.toWei(price, "ether")).send({ from: owner });
+          alert("Property added successfully!");
+        } catch (error) {
+          console.error("Error adding property:", error);
+        }
+      }
+    }
+
+    // Fetch Properties from Blockchain
+    async function fetchProperties() {
+      if (typeof window.ethereum !== "undefined") {
+        try {
+          const propertyCount = await contract.methods.nextPropertyId().call();
+          const propertiesContainer = document.getElementById("properties-list");
+          propertiesContainer.innerHTML = ""; // Clear existing content
+
+          for (let i = 0; i < propertyCount; i++) {
+            const property = await contract.methods.properties(i).call();
+
+            if (property.isAvailable) {
+              const propertyCard = `
+                <div class="col-md-4">
+                  <div class="card shadow-sm">
+                    <div class="card-body">
+                      <h5 class="card-title">${property.name}</h5>
+                      <p class="card-text">Price: ${web3.utils.fromWei(property.pricePerDay, "ether")} ETH</p>
+                    </div>
+                  </div>
+                </div>
+              `;
+              propertiesContainer.innerHTML += propertyCard;
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching properties:", error);
+        }
+      }
+    }
+
+    // Initialize Web3 on Page Load
+    document.addEventListener("DOMContentLoaded", () => {
+      initializeWeb3();
+      fetchProperties();
+    });
+
+    // MetaMask Login Button Event
+    document.getElementById("metamask-login").addEventListener("click", connectToMetaMask);
+  </script>
+</body>
+
+</html>
